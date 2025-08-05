@@ -1,0 +1,18 @@
+# Ignore Python virtual environments
+.venv/
+
+# Ignore PyCharm or VSCode IDE settings
+.idea/
+
+# Ignore environment variable files
+.env
+
+# __pycache__ and other Python-generated folders/files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore Mac and Windows system files
+.DS_Store
+Thumbs.db
