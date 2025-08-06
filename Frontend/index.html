@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocInsight - Insurance Q&A</title>
+</head>
+<body>
+  <h2>Upload Document</h2>
+  <input type="file" id="docFile" />
+  <button onclick="uploadDocument()">Upload</button>
+  <p id="docStatus"></p>
+
+  <h2>Ask a Query</h2>
+  <input type="text" id="query" placeholder="Enter your query here" />
+  <button onclick="askQuery()">Submit Query</button>
+  <pre id="response"></pre>
+
+  <script>
+    let uploadedDocId = "";
+
+    async function uploadDocument() {
+      const fileInput = document.getElementById("docFile");
+      const file = fileInput.files[0];
+      if (!file) {
+        alert("Please select a file to upload.");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("https://<your-fastapi-url>/upload/", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      uploadedDocId = data.doc_id;
+      document.getElementById("docStatus").innerText = "Uploaded with ID: " + uploadedDocId;
+    }
+
+    async function askQuery() {
+      const query = document.getElementById("query").value;
+      if (!query || !uploadedDocId) {
+        alert("Ensure both document is uploaded and query is filled.");
+        return;
+      }
+
+      const res = await fetch(`https://<your-fastapi-url>/ask_query?query=${encodeURIComponent(query)}&doc_id=${uploadedDocId}`, {
+        method: "POST"
+      });
+
+      const data = await res.json();
+      document.getElementById("response").innerText = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>

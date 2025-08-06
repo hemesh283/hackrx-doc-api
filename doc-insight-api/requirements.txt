@@ -1,12 +1,5 @@
 fastapi
 uvicorn
 openai
-python-multipart
-pypdf
 python-docx
-pandas
-tqdm
-langchain
-pdfminer.six
-email
-python-dotenv
+PyMuPDF
