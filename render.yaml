@@ -3,7 +3,7 @@ services:
     name: ignitex-hackrx-doc-api
     env: python
     buildCommand: pip install -r doc-insight-api/requirements.txt
-    startCommand: uvicorn doc-insight-api.main:app --host=0.0.0.0 --port=10000
+    startCommand: uvicorn doc-insight-api.main:app --host=0.0.0.0 --port=$PORT
     envVars:
       - key: OPENAI_API_KEY
         sync: false
