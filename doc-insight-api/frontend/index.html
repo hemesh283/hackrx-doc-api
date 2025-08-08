@@ -1,58 +1,207 @@
-<!DOCTYPE html>
+<!-- Frontend/index.html -->
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>DocInsight - Insurance Q&A</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DocInsight — Chat UI</title>
+  <style>
+    :root{--bg:#0f1724;--panel:#0b1220;--muted:#9aa4b2;--accent:#60a5fa;--bubble:#111827}
+    body{margin:0;font-family:Inter,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#071029 0%, #061324 100%);color:#e6eef6;height:100vh;display:flex;align-items:center;justify-content:center}
+    .app{width:960px;max-width:96%;height:86vh;background:linear-gradient(#081222,#07121b);border-radius:12px;padding:18px;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.7)}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+    header h1{margin:0;font-size:20px}
+    .upload{display:flex;gap:8px;align-items:center}
+    .upload input[type=file]{display:none}
+    .btn{background:var(--accent);color:#04243b;padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    .btn.secondary{background:transparent;color:var(--accent);border:1px solid rgba(255,255,255,.06)}
+    .main{flex:1;display:flex;gap:14px;overflow:hidden}
+    .left{flex:1;background:rgba(255,255,255,.02);padding:12px;border-radius:10px;display:flex;flex-direction:column}
+    .right{width:360px;background:rgba(255,255,255,.01);padding:12px;border-radius:10px;display:flex;flex-direction:column}
+    .drop{border:2px dashed rgba(255,255,255,.03);border-radius:8px;padding:12px;text-align:center;color:var(--muted);flex:0 0 120px}
+    .chat{flex:1;display:flex;flex-direction:column;gap:8px;overflow:auto;padding:6px}
+    .bubble{max-width:85%;padding:10px;border-radius:12px;background:var(--bubble);color:#e6eef6}
+    .bubble.user{align-self:flex-end;background:#062f47}
+    .bubble.assistant{align-self:flex-start;background:#081427}
+    .input-row{display:flex;gap:8px;padding:8px;border-top:1px solid rgba(255,255,255,.02)}
+    input[type=text]{flex:1;background:transparent;border:1px solid rgba(255,255,255,.03);padding:10px;border-radius:8px;color:#e6eef6}
+    .muted{color:var(--muted);font-size:13px}
+    .small{font-size:12px;color:var(--muted)}
+  </style>
 </head>
 <body>
-  <h2>Upload Document</h2>
-  <input type="file" id="docFile" />
-  <button onclick="uploadDocument()">Upload</button>
-  <p id="docStatus"></p>
+  <div class="app">
+    <header>
+      <div style="flex:1">
+        <h1>DocInsight — Upload & Chat</h1>
+        <div class="small">Upload a document, then ask questions (answers are based on uploaded file).</div>
+      </div>
+      <div class="upload">
+        <label class="btn" id="uploadBtn">Upload doc</label>
+        <input type="file" id="fileInput" accept=".pdf,.docx,.eml" />
+        <button class="btn secondary" id="clearBtn">Clear</button>
+      </div>
+    </header>
 
-  <h2>Ask a Query</h2>
-  <input type="text" id="query" placeholder="Enter your query here" />
-  <button onclick="askQuery()">Submit Query</button>
-  <pre id="response"></pre>
+    <div class="main">
+      <div class="left">
+        <div class="drop" id="dropArea">
+          <div class="muted">Drop a file here or click Upload</div>
+          <div id="fileInfo" style="margin-top:8px"></div>
+        </div>
 
-  <script>
-    let uploadedDocId = "";
+        <div class="chat" id="chat">
+          <div class="muted">No doc uploaded yet — upload a document to start.</div>
+        </div>
 
-    async function uploadDocument() {
-      const fileInput = document.getElementById("docFile");
-      const file = fileInput.files[0];
-      if (!file) {
-        alert("Please select a file to upload.");
-        return;
+        <div class="input-row" id="inputRow" style="display:none">
+          <input type="text" id="messageInput" placeholder="Ask something about the uploaded document..." />
+          <button class="btn" id="sendBtn">Send</button>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="muted">Session</div>
+        <div style="margin-top:8px" id="sessionInfo">No doc uploaded</div>
+        <hr style="margin:10px 0;border-color:rgba(255,255,255,.02)" />
+        <div class="small">Quick tips</div>
+        <ul style="padding-left:18px;color:var(--muted)">
+          <li>Upload PDF / DOCX / EML</li>
+          <li>Ask specific questions for better answers</li>
+          <li>Responses return a single sentence (JSON)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // compute base url (works when served from / or from a subpath)
+  const baseUrl = (function() {
+    // if index.html loaded from /static or similar, use relative root
+    return "";
+  })();
+
+  const uploadBtn = document.getElementById('uploadBtn');
+  const fileInput = document.getElementById('fileInput');
+  const dropArea = document.getElementById('dropArea');
+  const chatEl = document.getElementById('chat');
+  const inputRow = document.getElementById('inputRow');
+  const messageInput = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const fileInfo = document.getElementById('fileInfo');
+  const sessionInfo = document.getElementById('sessionInfo');
+  const clearBtn = document.getElementById('clearBtn');
+
+  let docId = null;
+
+  uploadBtn.addEventListener('click', ()=> fileInput.click());
+  clearBtn.addEventListener('click', ()=> {
+    docId = null;
+    chatEl.innerHTML = '<div class="muted">No doc uploaded yet — upload a document to start.</div>';
+    inputRow.style.display = 'none';
+    fileInfo.textContent = '';
+    sessionInfo.textContent = 'No doc uploaded';
+  });
+
+  // drag & drop
+  ;['dragenter','dragover'].forEach(ev => {
+    dropArea.addEventListener(ev, (e)=> {
+      e.preventDefault(); e.stopPropagation();
+      dropArea.style.borderColor = '#3b82f6';
+    });
+  });
+  ['dragleave','drop'].forEach(ev => {
+    dropArea.addEventListener(ev, (e)=> {
+      e.preventDefault(); e.stopPropagation();
+      dropArea.style.borderColor = '';
+    });
+  });
+  dropArea.addEventListener('drop', (e)=> {
+    const f = e.dataTransfer.files[0];
+    if(f) uploadFile(f);
+  });
+
+  fileInput.addEventListener('change', (e)=> {
+    const f = e.target.files[0];
+    if(f) uploadFile(f);
+  });
+
+  async function uploadFile(file) {
+    chatEl.innerHTML = '<div class="muted">Uploading and parsing file…</div>';
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch(baseUrl + '/upload/', { method: 'POST', body: fd });
+      if(!res.ok) {
+        const t = await res.text().catch(()=>null);
+        throw t || ('HTTP ' + res.status);
       }
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const res = await fetch("https://<your-fastapi-url>/upload/", {
-        method: "POST",
-        body: formData,
-      });
-
       const data = await res.json();
-      uploadedDocId = data.doc_id;
-      document.getElementById("docStatus").innerText = "Uploaded with ID: " + uploadedDocId;
+      docId = data.doc_id;
+      fileInfo.textContent = `Uploaded: ${file.name}`;
+      sessionInfo.textContent = `doc_id: ${docId}`;
+      chatEl.innerHTML = '';
+      appendSystem('Document uploaded. You can now ask a question.');
+      inputRow.style.display = 'flex';
+      messageInput.focus();
+    } catch(err) {
+      chatEl.innerHTML = `<div class="muted">Upload failed: ${String(err)}</div>`;
+      inputRow.style.display = 'none';
     }
+  }
 
-    async function askQuery() {
-      const query = document.getElementById("query").value;
-      if (!query || !uploadedDocId) {
-        alert("Ensure both document is uploaded and query is filled.");
-        return;
+  function appendMsg(role, text) {
+    const b = document.createElement('div');
+    b.className = 'bubble ' + (role === 'user' ? 'user' : 'assistant');
+    b.textContent = text;
+    chatEl.appendChild(b);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  function appendSystem(text) {
+    const d = document.createElement('div');
+    d.className = 'muted';
+    d.textContent = text;
+    chatEl.appendChild(d);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  messageInput.addEventListener('keydown', (e)=> { if(e.key === 'Enter') sendMessage(); });
+
+  let sending = false;
+  async function sendMessage() {
+    if(!docId) return alert('Upload a document first.');
+    const msg = messageInput.value.trim();
+    if(!msg) return;
+    if(sending) return;
+    sending = true;
+    appendMsg('user', msg);
+    messageInput.value = '';
+    // show temp loading bubble
+    const loading = document.createElement('div');
+    loading.className = 'bubble assistant';
+    loading.textContent = 'Thinking…';
+    chatEl.appendChild(loading);
+    chatEl.scrollTop = chatEl.scrollHeight;
+
+    try {
+      const res = await fetch(baseUrl + '/chat', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ doc_id: docId, message: msg })
+      });
+      if(!res.ok) {
+        const t = await res.text().catch(()=>null);
+        throw t || ('HTTP ' + res.status);
       }
-
-      const res = await fetch(`https://<your-fastapi-url>/ask_query?query=${encodeURIComponent(query)}&doc_id=${uploadedDocId}`, {
-        method: "POST"
-      });
-
       const data = await res.json();
-      document.getElementById("response").innerText = JSON.stringify(data, null, 2);
-    }
-  </script>
+      loading.remove();
+      appendMsg('assistant', data.answer || 'No answer');
+    } catch(err) {
+      loading.remove();
+      appendSystem('Error: ' + String(err));
+    } finally { sending = false; }
+  }
+</script>
 </body>
 </html>
