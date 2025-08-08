@@ -20,6 +20,8 @@ from db import SessionLocal
 from models import Document, QueryLog
 import uuid
 from typing import Dict, List, Optional
+import os
+import uvicorn
 
 # Load environment variables
 load_dotenv()
@@ -309,3 +311,7 @@ def delete_document(doc_id: str, db: Session = Depends(get_db)):
     except Exception:
         logger.exception("Failed to delete document")
         raise HTTPException(status_code=500, detail="Unable to delete document")
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
